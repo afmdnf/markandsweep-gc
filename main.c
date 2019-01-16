@@ -43,11 +43,36 @@ typedef struct { // stack containing Objects, emulating a VM
 	int maxObjects;
 } VM;
 
+// ----------------------------- Utility functions
+
+void assert(int condition, const char* msg) {
+	if (!condition) {
+		printf("%s\n", msg);
+		exit(1);
+	}
+}
+
+void objectPrint(Object* obj) {
+	switch (obj->type) {
+		case OBJ_INT:
+			printf("%d", obj->value);
+			break;
+		case OBJ_PAIR:
+			printf("(");
+			objectPrint(obj->head);
+			printf(", ");
+			objectPrint(obj->tail);
+			printf(")");
+			break;
+	}
+}
+
 // ----------------------------- Helper functions
 
 VM* newVM() {
 	VM* vm = malloc(sizeof(VM));
 	vm->stackSize = 0;
+	vm->firstObject = NULL;
 	vm->numObjects = 0;
 	vm->maxObjects = INITIAL_GC_THRESHOLD;
 	return vm;
@@ -61,35 +86,6 @@ void push(VM* vm, Object* value) {
 Object* pop(VM* vm) {
 	assert(vm->stackSize > 0, "Stack underflow!");
 	return vm->stack[--vm->stackSize];
-}
-
-Object* newObject(VM* vm, ObjectType type) {
-	if (vm->numObjects == vm->maxObjects) gc(vm); // gc kicks in when maxObjects reached
-
-	Object* obj = malloc(sizeof(Object));
-	obj->type = type;
-	obj->marked = 0;
-
-	obj->next = vm->firstObject; // new object added to left/head end of linked list
-	vm->firstObject = obj;
-	++vm->numObjects;
-	return obj;
-}
-
-// ----------------------------- User functions
-
-void pushInt(VM* vm, int intValue) {
-	Object* obj = newObject(vm, OBJ_INT);
-	obj->value = intValue;
-	push(vm, obj);
-}
-
-Object* pushPair(VM* vm) { // to push a pair, push two ints and call pushPair()
-	Object* obj = newObject(vm, OBJ_PAIR);
-	obj->tail = pop(vm);
-	obj->head = pop(vm);
-	push(vm, obj);
-	return obj;
 }
 
 // ----------------------------- MARK
@@ -134,4 +130,46 @@ void gc(VM* vm) {
 	The multiplier there lets the heap grow as the number of living objects increases.
 	Likewise, it will shrink automatically if a bunch of objects end up being freed. */
 	vm->maxObjects = vm->numObjects * 2;
+
+	printf("Collected %d objects, %d remain...\n", numObjects - vm->numObjects, vm->numObjects);
+}
+
+Object* newObject(VM* vm, ObjectType type) {
+	if (vm->numObjects == vm->maxObjects) gc(vm); // gc kicks in when maxObjects reached
+
+	Object* obj = malloc(sizeof(Object));
+	obj->type = type;
+	obj->marked = 0;
+
+	obj->next = vm->firstObject; // new object added to left/head end of linked list
+	vm->firstObject = obj;
+
+	++vm->numObjects;
+
+	return obj;
+}
+
+// ----------------------------- User functions
+
+void pushInt(VM* vm, int intValue) {
+	Object* obj = newObject(vm, OBJ_INT);
+	obj->value = intValue;
+	push(vm, obj);
+}
+
+Object* pushPair(VM* vm) { // to push a pair, push two ints and call pushPair()
+	Object* obj = newObject(vm, OBJ_PAIR);
+	obj->tail = pop(vm);
+	obj->head = pop(vm);
+	push(vm, obj);
+	return obj;
+}
+
+void freeVM(VM *vm) {
+	vm->stackSize = 0; gc(vm);
+	free(vm);
+}
+
+int main(int argc, const char* argv[]) {
+	return 0;
 }
