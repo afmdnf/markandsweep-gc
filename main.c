@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #define STACK_MAX 256
-#define INITIAL_GC_THRESHOLD 64
+#define INITIAL_GC_THRESHOLD 8
 
 // ----------------------------- Data Structures
 
@@ -170,6 +170,74 @@ void freeVM(VM *vm) {
 	free(vm);
 }
 
+// ----------------------------- TESTS
+
+void test1() {
+	printf("Test 1: Objects on stack preserved\n");
+	VM* vm = newVM();
+	pushInt(vm, 1); pushInt(vm, 2);
+
+	gc(vm);
+	assert(vm->numObjects == 2, "Should have preserved objects");
+	freeVM(vm);
+}
+
+void test2() {
+	printf("Test 2: Unreached objects collected\n");
+	VM* vm = newVM();
+	pushInt(vm, 1); pushInt(vm, 2); pop(vm); pop(vm);
+
+	gc(vm);
+	assert(vm->numObjects == 0, "Should have collected objects");
+	freeVM(vm);
+}
+
+void test3() {
+	printf("Test 3: Reach pairs\n");
+	VM* vm = newVM();
+	pushInt(vm, 1); pushInt(vm, 2); pushPair(vm);
+	pushInt(vm, 3); pushInt(vm, 4); pushPair(vm);
+	pushPair(vm); // nesting
+
+	gc(vm);
+	assert(vm->numObjects == 7, "Should have reached objects");
+	freeVM(vm);
+}
+
+void test4() {
+	printf("Test 4: Handle cycles\n");
+	VM* vm = newVM();
+	pushInt(vm, 1); pushInt(vm, 2);
+	Object *a = pushPair(vm);
+	pushInt(vm, 3); pushInt(vm, 4);
+	Object *b = pushPair(vm);
+
+	// Create cycle (also making 2 and 4 unreachable)
+	a->tail = b;
+	b->tail = a;
+
+	gc(vm);
+	assert(vm->numObjects == 4, "Should have collected objects");
+	freeVM(vm);
+}
+
+void perfTest() {
+	printf("Performance Test\n");
+	VM *vm = newVM();
+	for (int i = 0; i < 100; ++i) {
+		for (int j = 0; j < 20; ++j)
+			pushInt(vm, i);
+		for (int k = 0; k < 20; ++k)
+			pop(vm);
+	}
+	freeVM(vm);
+}
+
+
 int main(int argc, const char* argv[]) {
+
+	test1(); test2(); test3(); test4();
+	perfTest();
+
 	return 0;
 }
